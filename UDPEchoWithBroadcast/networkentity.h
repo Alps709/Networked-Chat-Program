@@ -17,6 +17,7 @@
 
 #include <string>
 #include <sstream>
+#include "network.h"
 
 enum EMessageType : unsigned char
 {
@@ -31,7 +32,7 @@ enum EMessageType : unsigned char
 struct TPacket 
 {
 	unsigned short MessageType;
-	char MessageContent[50];
+	char MessageContent[MAX_MESSAGE_LENGTH];
 	char PacketData[60];
 	unsigned short PacketSize;
 
