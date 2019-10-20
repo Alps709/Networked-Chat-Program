@@ -15,7 +15,7 @@
 //Library Includes
 #include <Windows.h>
 #include <cassert>
-//#include <vld.h>
+#include <vld.h>
 #include <thread>
 
 //Local Includes
@@ -56,23 +56,24 @@ int main()
 	_ucChoice = QueryOption("Do you want to run a client or server (C/S)?", "CS");
 	switch (_ucChoice)
 	{
-	case 'C':
-	{
-		_eNetworkEntityType = CLIENT;
-		break;
+		case 'C':
+		{
+			_eNetworkEntityType = CLIENT;
+			break;
+		}
+		case 'S':
+		{
+			_eNetworkEntityType = SERVER;
+			break;
+		}
+		default:
+		{
+			std::cout << "This is not a valid option" << std::endl;
+			return 0;
+			break;
+		}
 	}
-	case 'S':
-	{
-		_eNetworkEntityType = SERVER;
-		break;
-	}
-	default:
-	{
-		std::cout << "This is not a valid option" << std::endl;
-		return 0;
-		break;
-	}
-	}
+
 	if (!_rNetwork.GetInstance().Initialise(_eNetworkEntityType))
 	{
 		std::cout << "Unable to initialise the Network........Press any key to continue......";
@@ -92,7 +93,6 @@ int main()
 	//Run receive of server also on a separate thread 
 	else if (_eNetworkEntityType == SERVER) //if network entity is a server
 	{
-
 		_pServer = static_cast<CServer*>(_rNetwork.GetInstance().GetNetworkEntity());
 		_ServerReceiveThread = std::thread(&CServer::ReceiveData, _pServer, std::ref(_pcPacketData));
 
@@ -137,7 +137,6 @@ int main()
 					_pClient->ProcessData(const_cast<char*>(temp.c_str()));
 				}
 			}
-
 		}
 		else //if you are running a server instance
 		{

@@ -206,45 +206,59 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 
 	switch (_packetRecvd.MessageType)
 	{
-	case HANDSHAKE:
-	{
-		std::string message = "Users in chatroom : ";
-		std::cout << "Server received a handshake message " << std::endl;
-		if (AddClient(_packetRecvd.MessageContent))
+		case HANDSHAKE:
 		{
-			//Qs 3: To DO : Add the code to do a handshake here
-			_packetToSend.Serialize(HANDSHAKE_SUCCESS, const_cast<char*>(message.c_str()));
-			SendDataTo(_packetToSend.PacketData, dataItem.first);
+			std::string message = "Users in chatroom : ";
+			std::cout << "Server received a handshake message " << std::endl;
+			if (AddClient(_packetRecvd.MessageContent))
+			{
+				//Qs 3: To DO : Add the code to do a handshake here
+				_packetToSend.Serialize(HANDSHAKE_SUCCESS, const_cast<char*>(message.c_str()));
+				SendDataTo(_packetToSend.PacketData, dataItem.first);
+			}
+			else
+			{
+				//Handshake failed
+				_packetToSend.Serialize(HANDSHAKE_FAILURE, const_cast<char*>(message.c_str()));
+				SendDataTo(_packetToSend.PacketData, dataItem.first);
+			}
 		}
 		break;
-	}
-	case DATA:
-	{
-		_packetToSend.Serialize(DATA, _packetRecvd.MessageContent);
-		SendData(_packetToSend.PacketData);
+		{
+			case DATA:
+			{
+				_packetToSend.Serialize(DATA, _packetRecvd.MessageContent);
 
-		//std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				//There's no need to send the message back to the client that sent it
+				//SendData(_packetToSend.PacketData);
 
-		_packetToSend.Serialize(DATA, "TEST MESSAGE");
-		SendData(_packetToSend.PacketData);
+				//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-		break;
-	}
+				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+				{
+					if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
+					{ 
+						std::string tempMessgae = "3" + it->second.m_strName + ": " +_packetToSend.PacketData;
+						SendDataTo(const_cast<char*>(tempMessgae.c_str()), it->second.m_ClientAddress);
+					}
+				}
 
-	case BROADCAST:
-	{
-		std::cout << "Received a broadcast packet" << std::endl;
-		//Just send out a packet to the back to the client again which will have the server's IP and port in it's sender fields
-		_packetToSend.Serialize(BROADCAST, "I'm here!");
-		SendData(_packetToSend.PacketData);
-		break;
-	}
-
-	default:
-		break;
-
+				break;
+			}
+			case BROADCAST:
+			{
+				std::cout << "Received a broadcast packet" << std::endl;
+				//Just send out a packet to the back to the client again which will have the server's IP and port in it's sender fields
+				_packetToSend.Serialize(BROADCAST, "I'm here!");
+				SendData(_packetToSend.PacketData);
+				break;
+			}
+			default:
+				break;
+		}
 	}
 }
+
 
 CWorkQueue<std::pair<sockaddr_in, std::string>>* CServer::GetWorkQueue()
 {

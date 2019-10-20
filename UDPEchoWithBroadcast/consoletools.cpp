@@ -128,7 +128,6 @@ unsigned short QueryPortNumber(unsigned short uDefault)
 	{
 		char Port[128];
 
-
 		std::cout << "Enter port number (or just press Enter for default): ";
 		GetLineFromConsole(Port);
 		iPort = atoi(Port);

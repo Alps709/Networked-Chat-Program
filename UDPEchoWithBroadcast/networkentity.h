@@ -23,6 +23,7 @@ enum EMessageType : unsigned char
 {
 	HANDSHAKE,
 	HANDSHAKE_SUCCESS,
+	HANDSHAKE_FAILURE,
 	DATA,
 	KEEPALIVE,
 	COMMAND,
@@ -33,7 +34,7 @@ struct TPacket
 {
 	unsigned short MessageType;
 	char MessageContent[MAX_MESSAGE_LENGTH];
-	char PacketData[60];
+	char PacketData[MAX_MESSAGE_LENGTH];
 	unsigned short PacketSize;
 
 	//void set_packet(short _x, short _y, WORD _object_type, short _object_index, WORD _param)
