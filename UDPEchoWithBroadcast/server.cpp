@@ -238,8 +238,9 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 				{
 					if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
 					{ 
-						std::string tempMessgae = "3" + it->second.m_strName + ": " +_packetToSend.PacketData;
-						SendDataTo(const_cast<char*>(tempMessgae.c_str()), it->second.m_ClientAddress);
+						std::string tempMessgae = it->second.m_strName + ": " +_packetToSend.MessageContent;
+						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessgae.c_str()));
+						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 					}
 				}
 
