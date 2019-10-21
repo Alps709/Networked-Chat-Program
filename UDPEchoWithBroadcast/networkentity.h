@@ -69,7 +69,6 @@ struct TPacket
 		getline(iss, _tempMessageBuffer);
 		strcpy_s(MessageContent, _tempMessageBuffer.length() + 1, _tempMessageBuffer.c_str());
 		
-		
 		return *this;
 	}
 

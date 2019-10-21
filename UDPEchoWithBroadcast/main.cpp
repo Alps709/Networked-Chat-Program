@@ -89,7 +89,6 @@ int main()
 		_ClientReceiveThread = std::thread(&CClient::ReceiveData, _pClient, std::ref(_pcPacketData));
 
 	}
-
 	//Run receive of server also on a separate thread 
 	else if (_eNetworkEntityType == SERVER) //if network entity is a server
 	{
@@ -115,7 +114,16 @@ int main()
 
 				//Put the message into a packet structure
 				TPacket _packet;
-				_packet.Serialize(DATA, const_cast<char*>(_InputBuffer.GetString())); 
+
+				if(_InputBuffer.GetString()[0] == '!' || (_InputBuffer.GetString()[0] == '!' && _InputBuffer.GetString()[1] == '!'))
+				{
+					_packet.Serialize(COMMAND, const_cast<char*>(_InputBuffer.GetString()));
+				}
+				else
+				{
+					_packet.Serialize(DATA, const_cast<char*>(_InputBuffer.GetString()));
+				}
+				
 				_rNetwork.GetInstance().GetNetworkEntity()->SendData(_packet.PacketData);
 				//Clear the Input Buffer
 				_InputBuffer.ClearString();
@@ -140,7 +148,6 @@ int main()
 		}
 		else //if you are running a server instance
 		{
-
 			if (_pServer != nullptr)
 			{
 				if (!_pServer->GetWorkQueue()->empty())

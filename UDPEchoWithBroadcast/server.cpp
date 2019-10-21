@@ -74,8 +74,6 @@ bool CServer::Initialise()
 
 bool CServer::AddClient(std::string _strClientName)
 {
-	//TO DO : Add the code to add a client to the map here...
-	
 	for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 	{
 		//Check to see that the client to be added does not already exist in the map, 
@@ -89,6 +87,7 @@ bool CServer::AddClient(std::string _strClientName)
 			return false;
 		}
 	}
+
 	//Add the client to the map.
 	TClientDetails _clientToAdd;
 	_clientToAdd.m_strName = _strClientName;
@@ -174,9 +173,18 @@ void CServer::ReceiveData(char* _pcBufferToReceiveData)
 			strcpy_s(_pcBufferToReceiveData, _iPacketSize, _buffer);
 			char _IPAddress[100];
 			inet_ntop(AF_INET, &m_ClientAddress.sin_addr, _IPAddress, sizeof(_IPAddress));
+
+			std::string clientMsgName = "DEFAULT";
+			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+			{
+				if(ToString(it->second.m_ClientAddress) == ToString(m_ClientAddress))
+				{
+					clientMsgName = it->second.m_strName;
+				}
+			}
 			
 			std::cout << "Server Received \"" << _pcBufferToReceiveData << "\" from " <<
-				_IPAddress << ":" << ntohs(m_ClientAddress.sin_port) << std::endl;
+				_IPAddress << ":" << ntohs(m_ClientAddress.sin_port) << " Username: " << clientMsgName << std::endl;
 			//Push this packet data into the WorkQ
 			m_pWorkQueue->push(std::make_pair(m_ClientAddress,_pcBufferToReceiveData));
 		}
@@ -208,23 +216,23 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 	{
 		case HANDSHAKE:
 		{
-			std::string message = "Users in chatroom : ";
 			std::cout << "Server received a handshake message " << std::endl;
+
 			if (AddClient(_packetRecvd.MessageContent))
-			{
+			{ //Handshake successful
+
 				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
 
-				//Add the names of the other connected users to the message
+				std::string message = "Users in chatroom : ";
 
+				//Add the names of the other connected users to the message
 				//Append the first connected client
 				message.append(ToString((m_pConnectedClients->begin())->second.m_strName));
-
 				//Append the rest of the client names, but with a comma beforehand
 				for (auto it = ++m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 				{
 					message.append(", " + ToString(it->second.m_strName));
 				}
-
 				//Append a fullstop at the end of the list of names
 				message.append(".");
 
@@ -244,48 +252,78 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 				}
 			}
 			else
-			{
-				//Handshake failed
+			{	//Handshake failed
+				std::string message = "Handshake with server failed!";
 				_packetToSend.Serialize(HANDSHAKE_FAILURE, const_cast<char*>(message.c_str()));
 				SendDataTo(_packetToSend.PacketData, dataItem.first);
 			}
+			break;
 		}
-		break;
+		case DATA:
 		{
-			case DATA:
+			_packetToSend.Serialize(DATA, _packetRecvd.MessageContent);
+
+			//std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+			std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
+
+			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 			{
-				_packetToSend.Serialize(DATA, _packetRecvd.MessageContent);
+				if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
+				{ 
+					std::string tempMessage = clientMsgName + ": " +_packetToSend.MessageContent;
+					_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
+					SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
+				}
+			}
 
-				//There's no need to send the message back to the client that sent it
-				//SendData(_packetToSend.PacketData);
+			break;
+		}
+		case BROADCAST:
+		{
+			std::cout << "Received a broadcast packet" << std::endl;
+			//Just send out a packet to the back to the client again which will have the server's IP and port in it's sender fields
+			_packetToSend.Serialize(BROADCAST, "I'm here!");
+			SendData(_packetToSend.PacketData);
+			break;
+		}
+		case COMMAND:
+		{
+			std::string messageString = "No command found!";
+			std::string commandString = _packetRecvd.MessageContent;
 
-				//std::this_thread::sleep_for(std::chrono::milliseconds(50));
+			/*if(commandString[0] == '!' && commandString[1] == '!')
+			{
+				commandString.erase(commandString.begin());
+			}*/
 
-				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
-
-				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+			if (commandString[1] == '!')
+			{
+				std::string tempString;
+				for (unsigned int i = 2; i < commandString.length(); ++i)
 				{
-					if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
-					{ 
-						std::string tempMessage = clientMsgName + ": " +_packetToSend.MessageContent;
-						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
-						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
+					tempString += commandString[i];
+
+					if(tempString.find('?') != std::string::npos)
+					{
+						messageString = "The possible commands are: ?, q";
+						break;
+					}
+					else if(tempString.find('q') != std::string::npos)
+					{
+						messageString = "Quitting...";
+						break;
 					}
 				}
+			}
+			_packetToSend.Serialize(DATA, const_cast<char*>(messageString.c_str()));
+			SendData(_packetToSend.PacketData);
 
-				break;
-			}
-			case BROADCAST:
-			{
-				std::cout << "Received a broadcast packet" << std::endl;
-				//Just send out a packet to the back to the client again which will have the server's IP and port in it's sender fields
-				_packetToSend.Serialize(BROADCAST, "I'm here!");
-				SendData(_packetToSend.PacketData);
-				break;
-			}
-			default:
-				break;
+			break;
 		}
+
+		default:
+			break;
 	}
 }
 

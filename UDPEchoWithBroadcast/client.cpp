@@ -75,7 +75,6 @@ bool CClient::Initialise()
 	unsigned int _uiServerIndex;
 
 	//Local variable to hold client's name
-	char _cUserName[50];
 	ZeroMemory(&m_cUserName, 50);
 
 	//Zero out the memory for all the member variables.
@@ -128,7 +127,9 @@ bool CClient::Initialise()
 				std::cout << "Choose a server number to connect to :";
 				gets_s(_cServerChosen);
 
+				//Check if the value is within the range of server!
 				_uiServerIndex = atoi(_cServerChosen);
+
 				m_ServerSocketAddress.sin_family = AF_INET;
 				m_ServerSocketAddress.sin_port = m_vecServerAddr[_uiServerIndex].sin_port;
 				m_ServerSocketAddress.sin_addr.S_un.S_addr = m_vecServerAddr[_uiServerIndex].sin_addr.S_un.S_addr;
@@ -185,13 +186,14 @@ bool CClient::Initialise()
 	//Send a hanshake message to the server as part of the Client's Initialization process.
 	//Step1: Create a handshake packet
 	
-	do{
+	do
+	{
 		std::cout << "Please enter a username : ";
-		gets_s(_cUserName);
-	} while (_cUserName[0] == 0);
+		gets_s(m_cUserName);
+	} while (m_cUserName[0] == 0);
 
 	TPacket _packet;
-	_packet.Serialize(HANDSHAKE, _cUserName); 
+	_packet.Serialize(HANDSHAKE, m_cUserName);
 	SendData(_packet.PacketData);
 	return true;
 }
@@ -210,7 +212,7 @@ bool CClient::BroadcastForServers()
 	m_ServerSocketAddress.sin_family = AF_INET;
 	m_ServerSocketAddress.sin_addr.S_un.S_addr = INADDR_BROADCAST;
 
-	for (int i = 0; i < 10; i++) //Just try  a series of 10 ports to detect a runmning server; this is needed since we are testing multiple servers on the same local machine
+	for (int i = 0; i < 10; i++) //Just try  a series of 10 ports to detect a runnning server; this is needed since we are testing multiple servers on the same local machine
 	{
 		m_ServerSocketAddress.sin_port = htons(DEFAULT_SERVER_PORT + i);
 		SendData(_packet.PacketData);
@@ -218,7 +220,6 @@ bool CClient::BroadcastForServers()
 	ReceiveBroadcastMessages(_pcTempBuffer);
 
 	return true;
-
 }
 
 void CClient::ReceiveBroadcastMessages(char* _pcBufferToReceiveData)
@@ -353,7 +354,6 @@ void CClient::ReceiveData(char* _pcBufferToReceiveData)
 
 void CClient::ProcessData(char* _pcDataReceived)
 {
-
 	TPacket _packetRecvd;
 	_packetRecvd = _packetRecvd.Deserialize(_pcDataReceived);
 	switch (_packetRecvd.MessageType)
@@ -364,6 +364,21 @@ void CClient::ProcessData(char* _pcDataReceived)
 		std::cout << "SERVER> " << _packetRecvd.MessageContent << std::endl;
 		break;
 	}
+	case HANDSHAKE_FAILURE:
+	{
+		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10);
+		do
+		{
+			std::cout << "The username you sent to the server already exists!\nPlease enter a different one.\n";
+			std::cout << "Please enter a username : ";
+			gets_s(m_cUserName);
+		} while (m_cUserName[0] == 0);
+
+		TPacket _packet;
+		_packet.Serialize(HANDSHAKE, m_cUserName);
+		SendData(_packet.PacketData);
+		break;
+	}
 	case DATA:
 	{
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10);
@@ -372,7 +387,6 @@ void CClient::ProcessData(char* _pcDataReceived)
 	}
 	default:
 		break;
-
 	}
 }
 
