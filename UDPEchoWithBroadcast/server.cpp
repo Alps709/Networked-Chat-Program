@@ -212,6 +212,8 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			std::cout << "Server received a handshake message " << std::endl;
 			if (AddClient(_packetRecvd.MessageContent))
 			{
+				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
+
 				//Add the names of the other connected users to the message
 
 				//Append the first connected client
@@ -222,11 +224,24 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 				{
 					message.append(", " + ToString(it->second.m_strName));
 				}
+
 				//Append a fullstop at the end of the list of names
 				message.append(".");
 
 				_packetToSend.Serialize(HANDSHAKE_SUCCESS, const_cast<char*>(message.c_str()));
 				SendDataTo(_packetToSend.PacketData, dataItem.first);
+
+
+				//Tell all the other clients that this client has joined the chat
+				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+				{
+					if (ToString(it->second.m_strName) != clientMsgName)
+					{
+						std::string tempMessage = clientMsgName + " has joined the chat!";
+						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
+						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
+					}
+				}
 			}
 			else
 			{
