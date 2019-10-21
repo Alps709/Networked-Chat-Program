@@ -154,14 +154,14 @@ void CServer::ReceiveData(char* _pcBufferToReceiveData)
 	while (true)
 	{
 		// pull off the packet(s) using recvfrom()
-		_iNumOfBytesReceived = recvfrom(			// pulls a packet from a single source...
-			m_pServerSocket->GetSocketHandle(),						// client-end socket being used to read from
-			_buffer,							// incoming packet to be filled
-			MAX_MESSAGE_LENGTH,					   // length of incoming packet to be filled
-			0,										// flags
-			reinterpret_cast<sockaddr*>(&m_ClientAddress),	// address to be filled with packet source
-			&iSizeOfAdd								// size of the above address struct.
-		);
+		_iNumOfBytesReceived = recvfrom // pulls a packet from a single source...
+								(m_pServerSocket->GetSocketHandle(),				// client-end socket being used to read from
+								_buffer,										// incoming packet to be filled
+								MAX_MESSAGE_LENGTH,								// length of incoming packet to be filled
+								0,												// flags
+								reinterpret_cast<sockaddr*>(&m_ClientAddress),	// address to be filled with packet source
+								&iSizeOfAdd);									// size of the above address struct.
+
 		if (_iNumOfBytesReceived < 0)
 		{
 			int _iError = WSAGetLastError();
@@ -212,7 +212,19 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			std::cout << "Server received a handshake message " << std::endl;
 			if (AddClient(_packetRecvd.MessageContent))
 			{
-				//Qs 3: To DO : Add the code to do a handshake here
+				//Add the names of the other connected users to the message
+
+				//Append the first connected client
+				message.append(ToString((m_pConnectedClients->begin())->second.m_strName));
+
+				//Append the rest of the client names, but with a comma beforehand
+				for (auto it = ++m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+				{
+					message.append(", " + ToString(it->second.m_strName));
+				}
+				//Append a fullstop at the end of the list of names
+				message.append(".");
+
 				_packetToSend.Serialize(HANDSHAKE_SUCCESS, const_cast<char*>(message.c_str()));
 				SendDataTo(_packetToSend.PacketData, dataItem.first);
 			}
@@ -234,12 +246,14 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 
 				//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
+				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
+
 				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 				{
 					if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
 					{ 
-						std::string tempMessgae = it->second.m_strName + ": " +_packetToSend.MessageContent;
-						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessgae.c_str()));
+						std::string tempMessage = clientMsgName + ": " +_packetToSend.MessageContent;
+						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
 						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 					}
 				}
@@ -259,7 +273,6 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 		}
 	}
 }
-
 
 CWorkQueue<std::pair<sockaddr_in, std::string>>* CServer::GetWorkQueue()
 {
