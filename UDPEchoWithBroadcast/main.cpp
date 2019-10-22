@@ -104,7 +104,7 @@ int main()
 			_pClient = static_cast<CClient*>(_rNetwork.GetInstance().GetNetworkEntity());
 
 			//Prepare for reading input from the user
-			_InputBuffer.PrintToScreenTop();
+			//_InputBuffer.PrintToScreenTop();
 
 			//Get input from the user
 			if (_InputBuffer.Update())
@@ -128,7 +128,7 @@ int main()
 				//Clear the Input Buffer
 				_InputBuffer.ClearString();
 				//Print To Screen Top
-				_InputBuffer.PrintToScreenTop();
+				//_InputBuffer.PrintToScreenTop();
 			}
 			if (_pClient != nullptr)
 			{
@@ -163,8 +163,6 @@ int main()
 				}
 			}
 		}
-
-
 	} //End of while network is Online
 
 	_ClientReceiveThread.join();

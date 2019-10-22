@@ -385,6 +385,32 @@ void CClient::ProcessData(char* _pcDataReceived)
 		std::cout << "SERVER> " << _packetRecvd.MessageContent << std::endl;
 		break;
 	}
+	case DISCONNECT:
+	{
+		std::cout << _packetRecvd.MessageContent;
+		std::cout << "\nEnter y to disconnect, or anything else to stay connected: ";
+		std::string input;
+		std::getline(std::cin, input);
+		if (input.find_first_of("yY") != std::string::npos)
+		{
+			TPacket _packet;
+			std::string message = "Disconnecting...";
+			_packet.Serialize(DISCONNECT, const_cast<char*>(message.c_str()));
+			SendData(_packet.PacketData);
+
+			//Close client
+			exit(0);
+		}
+		else
+		{
+			TPacket _packet;
+			std::string message = "";
+			std::cout << "\nAborting disconnect!\n";
+			_packet.Serialize(DATA, const_cast<char*>(message.c_str()));
+			SendData(_packet.PacketData);
+		}
+		break;
+	}
 	default:
 		break;
 	}

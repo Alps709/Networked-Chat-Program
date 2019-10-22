@@ -262,7 +262,11 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 		case DATA:
 		{
 			_packetToSend.Serialize(DATA, _packetRecvd.MessageContent);
-
+			std::string temp = _packetRecvd.MessageContent;
+			if (temp == " ")
+			{
+				break;
+			}
 			//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 			std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
@@ -311,8 +315,10 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 					}
 					else if(tempString.find('q') != std::string::npos)
 					{
-						messageString = "Quitting...";
-						break;
+						messageString = "Are you sure you want to disconnect?";
+						_packetToSend.Serialize(DISCONNECT, const_cast<char*>(messageString.c_str()));
+						SendData(_packetToSend.PacketData);
+						return;
 					}
 				}
 			}
@@ -321,7 +327,22 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 
 			break;
 		}
-
+		case DISCONNECT:
+		{
+			//The client has declared that it wants to be disconnected form the server (the client is shutting itself down)
+			//Find the client and remove it from the client map
+			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+			{
+				if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
+				{
+					//Don't forget to lock this connected clients map when it's being used by a thread
+					std::cout << "Disconnecting user: " << it->second.m_strName;
+					m_pConnectedClients->erase(it);
+					break;
+				}
+			}
+			break;
+		}
 		default:
 			break;
 	}
