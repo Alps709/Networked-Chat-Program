@@ -38,7 +38,7 @@ struct TClientDetails
 	sockaddr_in m_ClientAddress;
 	bool m_bIsAlive;
 	std::string m_strName;
-	time_t m_timeOfLastMessage;
+	double m_timeOfLastMessage;
 };
 
 class CServer : public INetworkEntity

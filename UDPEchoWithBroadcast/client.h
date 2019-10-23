@@ -46,7 +46,9 @@ public:
 	virtual void GetRemoteIPAddress(char* _pcSendersIP);
 	virtual unsigned short GetRemotePort();
 
-	void GetPacketData(char* _pcLocalBuffer);
+	void SendKeepAlive();
+
+	void GetPacketData(char* _pcLocalBuffer) const;
 	CWorkQueue<std::string>* GetWorkQueue();
 
 	//Qs7 : Broadcast to Detect Servers
@@ -60,15 +62,15 @@ private:
 	//A buffer to contain all packet data for the client
 	char* m_pcPacketData;
 	//A client has a socket object to create the UDP socket at its end.
+	bool m_connectedToServer = false;
 	CSocket* m_pClientSocket;
 	// A Sockaddress structure which will have the details of the server 
 	sockaddr_in m_ServerSocketAddress;
 	//A username to associate with a client
-	char m_cUserName[50];
+	char m_cUserName[MAX_MESSAGE_LENGTH];
 	//A workQueue to distribute messages between the main thread and Receive thread.
 	CWorkQueue<std::string>* m_pWorkQueue;
 
-	//Question 7
 	//A vector to hold all the servers found after broadcasting
 	std::vector<sockaddr_in> m_vecServerAddr;
 	bool m_bDoBroadcast;

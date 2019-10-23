@@ -55,14 +55,14 @@ char QueryOption(const char* Question, const char* Accepted, bool bCaseSensitive
 		GetLineFromConsole(Str);
 		char res = Str[0];
 		const char* pTestAccepted = Accepted;
-		if (false == bCaseSensitive)
+		if (!bCaseSensitive)
 		{
 			res = (char)tolower(res);
 		}
 		while (*pTestAccepted != 0)
 		{
 			char cTest = *pTestAccepted;
-			if (false == bCaseSensitive)
+			if (!bCaseSensitive)
 			{
 				cTest = (char)tolower(cTest);
 			}

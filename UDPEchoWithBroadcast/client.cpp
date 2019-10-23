@@ -127,7 +127,7 @@ bool CClient::Initialise()
 				std::cout << "Choose a server number to connect to :";
 				gets_s(_cServerChosen);
 
-				//Check if the value is within the range of server!
+				//TODO: Check if the value is within the range of server!
 				_uiServerIndex = atoi(_cServerChosen);
 
 				m_ServerSocketAddress.sin_family = AF_INET;
@@ -362,6 +362,7 @@ void CClient::ProcessData(char* _pcDataReceived)
 	{
 		SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10);
 		std::cout << "SERVER> " << _packetRecvd.MessageContent << std::endl;
+		m_connectedToServer = true;
 		break;
 	}
 	case HANDSHAKE_FAILURE:
@@ -387,12 +388,15 @@ void CClient::ProcessData(char* _pcDataReceived)
 	}
 	case DISCONNECT:
 	{
+		//Ask the user if they want to disconnect
 		std::cout << _packetRecvd.MessageContent;
 		std::cout << "\nEnter y to disconnect, or anything else to stay connected: ";
 		std::string input;
 		std::getline(std::cin, input);
+
 		if (input.find_first_of("yY") != std::string::npos)
 		{
+			//User wants to disconnect from server and close the client
 			TPacket _packet;
 			std::string message = "Disconnecting...";
 			_packet.Serialize(DISCONNECT, const_cast<char*>(message.c_str()));
@@ -401,14 +405,12 @@ void CClient::ProcessData(char* _pcDataReceived)
 			//Close client
 			exit(0);
 		}
-		else
-		{
-			TPacket _packet;
-			std::string message = "";
-			std::cout << "\nAborting disconnect!\n";
-			_packet.Serialize(DATA, const_cast<char*>(message.c_str()));
-			SendData(_packet.PacketData);
-		}
+
+		//User didn't want to disconnect
+		TPacket _packet;
+		std::string message = "";
+		_packet.Serialize(DATA, const_cast<char*>(message.c_str()));
+		SendData(_packet.PacketData);
 		break;
 	}
 	default:
@@ -429,12 +431,15 @@ unsigned short CClient::GetRemotePort()
 
 void CClient::SendKeepAlive()
 {
-	TPacket _packet{};
-	std::string message = "I am alive!";
-	_packet.Serialize(KEEPALIVE, const_cast<char*>(message.c_str()));
-	SendData(_packet.PacketData);
+	while (m_connectedToServer)
+	{
+		TPacket _packet{};
+		std::string message = "I am alive!";
+		_packet.Serialize(KEEPALIVE, const_cast<char*>(message.c_str()));
+		SendData(_packet.PacketData);
 
-	std::this_thread::sleep_for(std::chrono::seconds(3));
+		std::this_thread::sleep_for(std::chrono::seconds(3));
+	}
 }
 
 void CClient::GetPacketData(char* _pcLocalBuffer) const

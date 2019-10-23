@@ -62,7 +62,7 @@ CClock::Process()
 
 	m_fCurrentTime = std::chrono::high_resolution_clock::now();
 
-	m_fDeltaTime = (double)std::chrono::duration_cast<std::chrono::milliseconds>(m_fCurrentTime - m_fLastTime).count();
+	m_fDeltaTime = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(m_fCurrentTime - m_fLastTime).count());
 
 	m_fTimeElapsed += m_fDeltaTime;
 }

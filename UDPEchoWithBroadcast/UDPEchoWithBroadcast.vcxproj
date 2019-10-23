@@ -163,6 +163,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="client.cpp" />
+    <ClCompile Include="clock.cpp" />
     <ClCompile Include="consoletools.cpp" />
     <ClCompile Include="inputlinebuffer.cpp" />
     <ClCompile Include="main.cpp" />
@@ -172,6 +173,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="client.h" />
+    <ClInclude Include="clock.h" />
     <ClInclude Include="consoletools.h" />
     <ClInclude Include="InputLineBuffer.h" />
     <ClInclude Include="network.h" />

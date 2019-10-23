@@ -41,7 +41,7 @@ int main()
 	unsigned char _ucChoice;
 	EEntityType _eNetworkEntityType;
 	CInputLineBuffer _InputBuffer(MAX_MESSAGE_LENGTH);
-	std::thread _ClientReceiveThread, _ServerReceiveThread;
+	std::thread _ClientReceiveThread, _ServerReceiveThread, _ClientSendKeepAliveThread, _ServerProcessThread;
 
 	//Get the instance of the network
 	CNetwork& _rNetwork = CNetwork::GetInstance();
@@ -120,12 +120,8 @@ int main()
 			}
 			if (_pClient != nullptr)
 			{
-				//If the message queue is empty 
-				if (_pClient->GetWorkQueue()->empty())
-				{
-					//Don't do anything
-				}
-				else
+				//If the message queue is not empty, process the messages
+				if (!(_pClient->GetWorkQueue()->empty()))
 				{
 					//Retrieve off a message from the queue and process it
 					std::string temp;
@@ -160,7 +156,6 @@ int main()
 		}//End of while network is Online
 	}
 	
-
 	_ClientReceiveThread.join();
 	_ServerReceiveThread.join();
 
