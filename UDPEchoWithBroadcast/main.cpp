@@ -80,26 +80,14 @@ int main()
 		_getch();
 		return 0;
 	}
-
-	//Run receive on a separate thread so that it does not block the main client thread.
+	
 	if (_eNetworkEntityType == CLIENT) //if network entity is a client
 	{
-
+		//Run receive on a separate thread so that it does not block the main client thread.
 		_pClient = static_cast<CClient*>(_rNetwork.GetInstance().GetNetworkEntity());
 		_ClientReceiveThread = std::thread(&CClient::ReceiveData, _pClient, std::ref(_pcPacketData));
 
-	}
-	//Run receive of server also on a separate thread 
-	else if (_eNetworkEntityType == SERVER) //if network entity is a server
-	{
-		_pServer = static_cast<CServer*>(_rNetwork.GetInstance().GetNetworkEntity());
-		_ServerReceiveThread = std::thread(&CServer::ReceiveData, _pServer, std::ref(_pcPacketData));
-
-	}
-
-	while (_rNetwork.IsOnline())
-	{
-		if (_eNetworkEntityType == CLIENT) //if network entity is a client
+		while (_rNetwork.IsOnline())
 		{
 			_pClient = static_cast<CClient*>(_rNetwork.GetInstance().GetNetworkEntity());
 
@@ -115,7 +103,7 @@ int main()
 				//Put the message into a packet structure
 				TPacket _packet;
 
-				if(_InputBuffer.GetString()[0] == '!' || (_InputBuffer.GetString()[0] == '!' && _InputBuffer.GetString()[1] == '!'))
+				if (_InputBuffer.GetString()[0] == '!' || (_InputBuffer.GetString()[0] == '!' && _InputBuffer.GetString()[1] == '!'))
 				{
 					_packet.Serialize(COMMAND, const_cast<char*>(_InputBuffer.GetString()));
 				}
@@ -123,7 +111,7 @@ int main()
 				{
 					_packet.Serialize(DATA, const_cast<char*>(_InputBuffer.GetString()));
 				}
-				
+
 				_rNetwork.GetInstance().GetNetworkEntity()->SendData(_packet.PacketData);
 				//Clear the Input Buffer
 				_InputBuffer.ClearString();
@@ -145,8 +133,15 @@ int main()
 					_pClient->ProcessData(const_cast<char*>(temp.c_str()));
 				}
 			}
-		}
-		else //if you are running a server instance
+		}//End of while network is Online
+	}
+	else //if you are running a server instance
+	{
+		//Run receive of server on a separate thread 
+		_pServer = static_cast<CServer*>(_rNetwork.GetInstance().GetNetworkEntity());
+		_ServerReceiveThread = std::thread(&CServer::ReceiveData, _pServer, std::ref(_pcPacketData));
+
+		while (_rNetwork.IsOnline())
 		{
 			if (_pServer != nullptr)
 			{
@@ -162,8 +157,9 @@ int main()
 					_pServer->ProcessData(dataItem);
 				}
 			}
-		}
-	} //End of while network is Online
+		}//End of while network is Online
+	}
+	
 
 	_ClientReceiveThread.join();
 	_ServerReceiveThread.join();

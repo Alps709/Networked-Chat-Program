@@ -427,7 +427,17 @@ unsigned short CClient::GetRemotePort()
 	return ntohs(m_ServerSocketAddress.sin_port);
 }
 
-void CClient::GetPacketData(char* _pcLocalBuffer)
+void CClient::SendKeepAlive()
+{
+	TPacket _packet{};
+	std::string message = "I am alive!";
+	_packet.Serialize(KEEPALIVE, const_cast<char*>(message.c_str()));
+	SendData(_packet.PacketData);
+
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+}
+
+void CClient::GetPacketData(char* _pcLocalBuffer) const
 {
 	strcpy_s(_pcLocalBuffer, strlen(m_pcPacketData) + 1, m_pcPacketData);
 }

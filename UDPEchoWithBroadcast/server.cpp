@@ -69,6 +69,8 @@ bool CServer::Initialise()
 	//Qs 2: Create the map to hold details of all connected clients
 	m_pConnectedClients = new std::map < std::string, TClientDetails >() ;
 
+	m_serverTimer.Initialise();
+
 	return true;
 }
 
@@ -92,6 +94,7 @@ bool CServer::AddClient(std::string _strClientName)
 	TClientDetails _clientToAdd;
 	_clientToAdd.m_strName = _strClientName;
 	_clientToAdd.m_ClientAddress = this->m_ClientAddress;
+	_clientToAdd.m_clientTimer.Initialise();
 
 	std::string _strAddress = ToString(m_ClientAddress);
 	m_pConnectedClients->insert(std::pair < std::string, TClientDetails > (_strAddress, _clientToAdd));
@@ -207,6 +210,45 @@ unsigned short CServer::GetRemotePort()
 	return ntohs(m_ClientAddress.sin_port);
 }
 
+//Update the time since the last message, every second
+void CServer::ProcessClientLastMessageTimer()
+{
+	while(ClientTimer)
+	{
+		{
+			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+			std::lock_guard<std::mutex> _lock(m_timerMutex);
+			m_serverTimer.Process();
+
+			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end();)
+			{
+				//Check if a message has not been sent within the last 10 seconds
+				if(it->second.m_timeOfLastMessage > 10000)
+				{
+					//Send the client a message saying it is being removed from the server 
+					TPacket _packetToSend;
+					std::string tempMessage = "You failed to send a keep alive message for over 10 seconds, you will now be disconnected from the server.";
+
+					_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
+					SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
+
+					//Remove the client from the server
+					m_pConnectedClients->erase(it);
+				}
+				else
+				{
+					//Increase the timer since last message
+					it->second.m_timeOfLastMessage += m_serverTimer.GetDeltaTick();
+					++it;
+				}	
+			}
+		}
+
+		//Sleep for a second so it doesn't needlessly process it every  
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
+}
+
 void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 {
 	TPacket _packetRecvd, _packetToSend;
@@ -219,8 +261,8 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			std::cout << "Server received a handshake message " << std::endl;
 
 			if (AddClient(_packetRecvd.MessageContent))
-			{ //Handshake successful
-
+			{ 
+				//Handshake successful
 				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
 
 				std::string message = "Users in chatroom : ";
@@ -275,13 +317,16 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			{
 				if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
 				{ 
-					std::string tempMessage = clientMsgName + ": " +_packetToSend.MessageContent;
+					std::string tempMessage = clientMsgName + ": " + _packetToSend.MessageContent;
 					_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
 					SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 				}
 			}
-
 			break;
+		}
+		case KEEPALIVE:
+		{
+			
 		}
 		case BROADCAST:
 		{
@@ -322,9 +367,9 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 					}
 				}
 			}
+
 			_packetToSend.Serialize(DATA, const_cast<char*>(messageString.c_str()));
 			SendData(_packetToSend.PacketData);
-
 			break;
 		}
 		case DISCONNECT:

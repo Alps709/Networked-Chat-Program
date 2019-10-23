@@ -23,6 +23,7 @@
 // Local Includes
 #include "networkentity.h"
 #include "WorkQueue.h"
+#include "clock.h"
 
 // Types
 
@@ -37,7 +38,7 @@ struct TClientDetails
 	sockaddr_in m_ClientAddress;
 	bool m_bIsAlive;
 	std::string m_strName;
-	//time_t m_timeOfLastMessage;
+	time_t m_timeOfLastMessage;
 };
 
 class CServer : public INetworkEntity
@@ -56,12 +57,15 @@ public:
 	virtual void GetRemoteIPAddress(char* _pcSendersIP);
 	virtual unsigned short GetRemotePort();
 
+	bool ClientTimer = true;
+	void ProcessClientLastMessageTimer();
+
 	CWorkQueue<std::pair<sockaddr_in, std::string>>* GetWorkQueue();
 	//Qs 2: Function to add clients to the map.
 private:
 	bool AddClient(std::string _strClientName);
 
-
+	mutable std::mutex m_timerMutex;
 
 private:
 	//A Buffer to contain all packet data for the server
@@ -72,7 +76,9 @@ private:
 	//Since it is a UDP socket capable of receiving from multiple clients; these details will change depending on who has sent the packet we are currently processing.
 	sockaddr_in m_ClientAddress; 
 
-	//Qs 2 : Make a map to hold the details of all the client who have connected. 
+	//Used to keep time for client keep alive messages
+	CClock m_serverTimer;
+
 	//The structure maps client addresses to client details
 	std::map<std::string, TClientDetails>* m_pConnectedClients;
 
