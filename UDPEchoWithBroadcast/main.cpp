@@ -41,7 +41,7 @@ int main()
 	unsigned char _ucChoice;
 	EEntityType _eNetworkEntityType;
 	CInputLineBuffer _InputBuffer(MAX_MESSAGE_LENGTH);
-	std::thread _ClientReceiveThread, _ServerReceiveThread, _ClientSendKeepAliveThread, _ServerProcessThread;
+	std::thread _ClientReceiveThread, _ServerReceiveThread, _ClientSendKeepAliveThread, _ServerProcessThread, _ServerClientTimerThread;
 
 	//Get the instance of the network
 	CNetwork& _rNetwork = CNetwork::GetInstance();
@@ -80,16 +80,35 @@ int main()
 		_getch();
 		return 0;
 	}
-	
+
+	//Run receive on a separate thread so that it does not block the main client thread.
 	if (_eNetworkEntityType == CLIENT) //if network entity is a client
 	{
-		//Run receive on a separate thread so that it does not block the main client thread.
 		_pClient = static_cast<CClient*>(_rNetwork.GetInstance().GetNetworkEntity());
 		_ClientReceiveThread = std::thread(&CClient::ReceiveData, _pClient, std::ref(_pcPacketData));
+	}
+	//Run receive of server also on a separate thread 
+	else if (_eNetworkEntityType == SERVER) //if network entity is a server
+	{
+		_pServer = dynamic_cast<CServer*>(_rNetwork.GetInstance().GetNetworkEntity());
+		_ServerReceiveThread = std::thread(&CServer::ReceiveData, _pServer, std::ref(_pcPacketData));
+		_ServerProcessThread = std::thread(&CServer::GetDataAndProcess, _pServer, std::ref(_rNetwork), std::ref(_cIPAddress));
+		_ServerClientTimerThread = std::thread(&CServer::ProcessClientLastMessageTimer, _pServer);
+	}
 
-		while (_rNetwork.IsOnline())
+	int counter = 0;
+	while (_rNetwork.IsOnline())
+	{
+		if (_eNetworkEntityType == CLIENT) //if network entity is a client
 		{
-			_pClient = static_cast<CClient*>(_rNetwork.GetInstance().GetNetworkEntity());
+			//Only start the thread on the second loop
+			if (counter == 1)
+			{
+				_ClientSendKeepAliveThread = std::thread(&CClient::SendKeepAlive, _pClient);
+			}
+
+			//Increment counter
+			if (counter <= 1) ++counter;
 
 			//Prepare for reading input from the user
 			//_InputBuffer.PrintToScreenTop();
@@ -129,35 +148,15 @@ int main()
 					_pClient->ProcessData(const_cast<char*>(temp.c_str()));
 				}
 			}
-		}//End of while network is Online
+		}
 	}
-	else //if you are running a server instance
-	{
-		//Run receive of server on a separate thread 
-		_pServer = static_cast<CServer*>(_rNetwork.GetInstance().GetNetworkEntity());
-		_ServerReceiveThread = std::thread(&CServer::ReceiveData, _pServer, std::ref(_pcPacketData));
 
-		while (_rNetwork.IsOnline())
-		{
-			if (_pServer != nullptr)
-			{
-				if (!_pServer->GetWorkQueue()->empty())
-				{
-					_rNetwork.GetInstance().GetNetworkEntity()->GetRemoteIPAddress(_cIPAddress);
-					//std::cout << _cIPAddress
-					//<< ":" << _rNetwork.GetInstance().GetNetworkEntity()->GetRemotePort() << "> " << _pcPacketData << std::endl;
-
-					//Retrieve off a message from the queue and process it
-					std::pair<sockaddr_in, std::string> dataItem;
-					_pServer->GetWorkQueue()->pop(dataItem);
-					_pServer->ProcessData(dataItem);
-				}
-			}
-		}//End of while network is Online
-	}
-	
+	_rNetwork.m_bOnline = false;
 	_ClientReceiveThread.join();
+	_ClientSendKeepAliveThread.join();
 	_ServerReceiveThread.join();
+	_ServerProcessThread.join();
+	_ServerClientTimerThread.join();
 
 	//Shut Down the Network
 	_rNetwork.ShutDown();

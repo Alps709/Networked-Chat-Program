@@ -38,7 +38,7 @@ struct TClientDetails
 	sockaddr_in m_ClientAddress;
 	bool m_bIsAlive;
 	std::string m_strName;
-	double m_timeOfLastMessage;
+	double m_timeSinceLastMessage;
 };
 
 class CServer : public INetworkEntity
@@ -57,17 +57,16 @@ public:
 	virtual void GetRemoteIPAddress(char* _pcSendersIP);
 	virtual unsigned short GetRemotePort();
 
+	void GetDataAndProcess(CNetwork& _rNetwork, char* _cIPAddress);
+
 	bool ClientTimer = true;
 	void ProcessClientLastMessageTimer();
 
 	CWorkQueue<std::pair<sockaddr_in, std::string>>* GetWorkQueue();
-	//Qs 2: Function to add clients to the map.
-private:
+	std::mutex* m_timerMutex = new std::mutex();
+
 	bool AddClient(std::string _strClientName);
 
-	mutable std::mutex m_timerMutex;
-
-private:
 	//A Buffer to contain all packet data for the server
 	char* m_pcPacketData;
 	//A server has a socket object to create the UDP socket at its end.

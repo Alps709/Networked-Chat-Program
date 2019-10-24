@@ -34,6 +34,9 @@ CServer::CServer()
 
 CServer::~CServer()
 {
+	delete m_timerMutex;
+	m_timerMutex = 0;
+
 	delete m_pConnectedClients;
 	m_pConnectedClients = 0;
 
@@ -66,7 +69,6 @@ bool CServer::Initialise()
 		return false;
 	}
 
-	//Qs 2: Create the map to hold details of all connected clients
 	m_pConnectedClients = new std::map < std::string, TClientDetails >() ;
 
 	m_serverTimer.Initialise();
@@ -76,6 +78,9 @@ bool CServer::Initialise()
 
 bool CServer::AddClient(std::string _strClientName)
 {
+	//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+	std::unique_lock<std::mutex> _lock(*m_timerMutex);
+
 	for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 	{
 		//Check to see that the client to be added does not already exist in the map, 
@@ -84,7 +89,7 @@ bool CServer::AddClient(std::string _strClientName)
 			return false;
 		}
 		//also check for the existence of the username
-		else if (it->second.m_strName == _strClientName)
+		if (it->second.m_strName == _strClientName)
 		{
 			return false;
 		}
@@ -94,7 +99,7 @@ bool CServer::AddClient(std::string _strClientName)
 	TClientDetails _clientToAdd;
 	_clientToAdd.m_strName = _strClientName;
 	_clientToAdd.m_ClientAddress = this->m_ClientAddress;
-	_clientToAdd.m_clientTimer.Initialise();
+	_clientToAdd.m_timeSinceLastMessage = 0.0;
 
 	std::string _strAddress = ToString(m_ClientAddress);
 	m_pConnectedClients->insert(std::pair < std::string, TClientDetails > (_strAddress, _clientToAdd));
@@ -145,7 +150,6 @@ bool CServer::SendDataTo(char* _pcDataToSend, sockaddr_in _clientAdrress)
 
 void CServer::ReceiveData(char* _pcBufferToReceiveData)
 {
-	
 	int iSizeOfAdd = sizeof(m_ClientAddress);
 	int _iNumOfBytesReceived;
 	int _iPacketSize;
@@ -178,6 +182,9 @@ void CServer::ReceiveData(char* _pcBufferToReceiveData)
 			inet_ntop(AF_INET, &m_ClientAddress.sin_addr, _IPAddress, sizeof(_IPAddress));
 
 			std::string clientMsgName = "DEFAULT";
+
+			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+			std::unique_lock<std::mutex> _lock(*m_timerMutex);
 			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 			{
 				if(ToString(it->second.m_ClientAddress) == ToString(m_ClientAddress))
@@ -185,7 +192,8 @@ void CServer::ReceiveData(char* _pcBufferToReceiveData)
 					clientMsgName = it->second.m_strName;
 				}
 			}
-			
+			_lock.unlock();
+
 			std::cout << "Server Received \"" << _pcBufferToReceiveData << "\" from " <<
 				_IPAddress << ":" << ntohs(m_ClientAddress.sin_port) << " Username: " << clientMsgName << std::endl;
 			//Push this packet data into the WorkQ
@@ -210,6 +218,19 @@ unsigned short CServer::GetRemotePort()
 	return ntohs(m_ClientAddress.sin_port);
 }
 
+void CServer::GetDataAndProcess(CNetwork& _rNetwork, char* _cIPAddress)
+{
+	while (_rNetwork.IsOnline())
+	{
+		_rNetwork.GetInstance().GetNetworkEntity()->GetRemoteIPAddress(_cIPAddress);
+
+		//Retrieve off a message from the queue and process it
+		std::pair<sockaddr_in, std::string> dataItem;
+		GetWorkQueue()->pop(dataItem);
+		ProcessData(dataItem);
+	}
+}
+
 //Update the time since the last message, every second
 void CServer::ProcessClientLastMessageTimer()
 {
@@ -217,30 +238,35 @@ void CServer::ProcessClientLastMessageTimer()
 	{
 		{
 			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
-			std::lock_guard<std::mutex> _lock(m_timerMutex);
+			std::lock_guard<std::mutex> _lock(*m_timerMutex);
+
 			m_serverTimer.Process();
-
-			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end();)
+			if (!m_pConnectedClients->empty())
 			{
-				//Check if a message has not been sent within the last 10 seconds
-				if(it->second.m_timeOfLastMessage > 10000)
+				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end();)
 				{
-					//Send the client a message saying it is being removed from the server 
-					TPacket _packetToSend;
-					std::string tempMessage = "You failed to send a keep alive message for over 10 seconds, you will now be disconnected from the server.";
+					//Check if a message has not been sent within the last 10 seconds
+					if (it->second.m_timeSinceLastMessage > 10000)
+					{
+						//Send the client a message saying it is being removed from the server 
+						TPacket _packetToSend;
+						std::string tempMessage = "You failed to send a keep alive message for over 10 seconds, you will now be disconnected from the server.";
 
-					_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
-					SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
+						_packetToSend.Serialize(DATA, const_cast<char*>(tempMessage.c_str()));
+						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 
-					//Remove the client from the server
-					m_pConnectedClients->erase(it);
+						//Remove the client from the server
+						m_pConnectedClients->erase(it);
+					}
+					else
+					{
+						//Increase the timer since last message
+						it->second.m_timeSinceLastMessage += m_serverTimer.GetDeltaTick();
+
+						//Only increment the iterator when erase hasn't been called
+						++it;
+					}
 				}
-				else
-				{
-					//Increase the timer since last message
-					it->second.m_timeOfLastMessage += m_serverTimer.GetDeltaTick();
-					++it;
-				}	
 			}
 		}
 
@@ -261,8 +287,12 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			std::cout << "Server received a handshake message " << std::endl;
 
 			if (AddClient(_packetRecvd.MessageContent))
-			{ 
-				//Handshake successful
+			{	//Handshake successful
+
+				//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+				std::unique_lock<std::mutex> _lock(*m_timerMutex);
+
+				//Get this client's name
 				std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
 
 				std::string message = "Users in chatroom : ";
@@ -270,20 +300,24 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 				//Add the names of the other connected users to the message
 				//Append the first connected client
 				message.append(ToString((m_pConnectedClients->begin())->second.m_strName));
+
 				//Append the rest of the client names, but with a comma beforehand
-				for (auto it = ++m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+				if (m_pConnectedClients->size() > 1)
 				{
-					message.append(", " + ToString(it->second.m_strName));
+					for (auto& it = ++m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+					{
+						message.append(", " + ToString(it->second.m_strName));
+					}
 				}
+
 				//Append a fullstop at the end of the list of names
 				message.append(".");
 
 				_packetToSend.Serialize(HANDSHAKE_SUCCESS, const_cast<char*>(message.c_str()));
 				SendDataTo(_packetToSend.PacketData, dataItem.first);
 
-
 				//Tell all the other clients that this client has joined the chat
-				for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+				for (auto& it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 				{
 					if (ToString(it->second.m_strName) != clientMsgName)
 					{
@@ -292,6 +326,7 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 						SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 					}
 				}
+				_lock.unlock();
 			}
 			else
 			{	//Handshake failed
@@ -309,11 +344,18 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 			{
 				break;
 			}
-			//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-			std::string clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
+			std::string clientMsgName;
 
-			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+			std::unique_lock<std::mutex> _lock(*m_timerMutex);
+
+			if (m_pConnectedClients->find(ToString(dataItem.first)) != m_pConnectedClients->end())
+			{
+				clientMsgName = m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName;
+			}
+
+			for (auto& it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 			{
 				if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
 				{ 
@@ -322,11 +364,20 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 					SendDataTo(_packetToSend.PacketData, it->second.m_ClientAddress);
 				}
 			}
+			_lock.unlock();
 			break;
 		}
 		case KEEPALIVE:
 		{
-			
+			//Reset the keep alive timer for the client, as the client has sent a keep alive message
+
+			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+			std::unique_lock<std::mutex> _lock(*m_timerMutex);
+
+			std::cout << "Received a keepalive message from Username: " << m_pConnectedClients->find(ToString(dataItem.first))->second.m_strName << "\n";
+			m_pConnectedClients->find(ToString(dataItem.first))->second.m_timeSinceLastMessage = 0.0;
+			_lock.unlock();
+			break;
 		}
 		case BROADCAST:
 		{
@@ -374,18 +425,22 @@ void CServer::ProcessData(std::pair<sockaddr_in, std::string> dataItem)
 		}
 		case DISCONNECT:
 		{
+
 			//The client has declared that it wants to be disconnected form the server (the client is shutting itself down)
 			//Find the client and remove it from the client map
-			for (auto it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
+
+			//Lock the thread so a client can't be disconnected (in another process) while this thread is iterating over the map
+			std::unique_lock<std::mutex> _lock(*m_timerMutex);
+			for (auto& it = m_pConnectedClients->begin(); it != m_pConnectedClients->end(); ++it)
 			{
 				if (ToString(it->second.m_ClientAddress) != ToString(dataItem.first))
 				{
-					//Don't forget to lock this connected clients map when it's being used by a thread
 					std::cout << "Disconnecting user: " << it->second.m_strName;
 					m_pConnectedClients->erase(it);
 					break;
 				}
 			}
+			_lock.unlock();
 			break;
 		}
 		default:

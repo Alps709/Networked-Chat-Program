@@ -55,6 +55,8 @@ public:
 	static CNetwork& GetInstance();
 	static void DestroyInstance();
 
+	bool m_bOnline;
+
 private:
 	//Make the network class a singleton. There is only one instance of the network running
 	CNetwork();
@@ -64,7 +66,6 @@ private:
 protected:
 	//A network has a network entity
 	INetworkEntity* m_pNetworkEntity;
-	bool m_bOnline;
 
 	// Singleton Instance
 	static CNetwork* s_pNetwork;
