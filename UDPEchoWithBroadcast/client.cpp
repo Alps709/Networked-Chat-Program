@@ -431,14 +431,17 @@ unsigned short CClient::GetRemotePort()
 
 void CClient::SendKeepAlive()
 {
-	while (m_connectedToServer)
+	while(true)
 	{
-		TPacket _packet{};
-		std::string message = "I am alive!";
-		_packet.Serialize(KEEPALIVE, const_cast<char*>(message.c_str()));
-		SendData(_packet.PacketData);
+		if (m_connectedToServer)
+		{
+			TPacket _packet{};
+			std::string message = "I am alive!";
+			_packet.Serialize(KEEPALIVE, const_cast<char*>(message.c_str()));
+			SendData(_packet.PacketData);
 
-		std::this_thread::sleep_for(std::chrono::seconds(3));
+			std::this_thread::sleep_for(std::chrono::seconds(3));
+		}
 	}
 }
 

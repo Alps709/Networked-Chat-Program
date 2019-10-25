@@ -38,7 +38,7 @@ struct TClientDetails
 	sockaddr_in m_ClientAddress;
 	bool m_bIsAlive;
 	std::string m_strName;
-	double m_timeSinceLastMessage;
+	double m_timeSinceLastMessage; //in milliseconds
 };
 
 class CServer : public INetworkEntity
@@ -59,7 +59,7 @@ public:
 
 	void GetDataAndProcess(CNetwork& _rNetwork, char* _cIPAddress);
 
-	bool ClientTimer = true;
+	bool m_clientTimer = true;
 	void ProcessClientLastMessageTimer();
 
 	CWorkQueue<std::pair<sockaddr_in, std::string>>* GetWorkQueue();

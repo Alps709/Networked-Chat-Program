@@ -54,15 +54,16 @@ public:
 	//Qs7 : Broadcast to Detect Servers
 	bool BroadcastForServers();
 
+	bool m_connectedToServer = false;
+	
 private:
 	// Question 7 : Broadcast to Detect Servers
 	void ReceiveBroadcastMessages(char* _pcBufferToReceiveData);
 
-private:
 	//A buffer to contain all packet data for the client
 	char* m_pcPacketData;
 	//A client has a socket object to create the UDP socket at its end.
-	bool m_connectedToServer = false;
+	
 	CSocket* m_pClientSocket;
 	// A Sockaddress structure which will have the details of the server 
 	sockaddr_in m_ServerSocketAddress;
