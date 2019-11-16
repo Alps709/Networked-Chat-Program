@@ -74,12 +74,6 @@ bool CClient::Initialise()
 	ZeroMemory(_cServerChosen, 5);
 	unsigned int _uiServerIndex;
 
-	//Local variable to hold client's name
-	ZeroMemory(&m_cUserName, 50);
-
-	//Zero out the memory for all the member variables.
-	ZeroMemory(&m_cUserName, strlen(m_cUserName));
-
 	//Create a work queue to distribute messages between the main  thread and the receive thread.
 	m_pWorkQueue = new CWorkQueue<std::string>();
 
@@ -189,11 +183,11 @@ bool CClient::Initialise()
 	do
 	{
 		std::cout << "Please enter a username : ";
-		gets_s(m_cUserName);
+		std::getline(std::cin, m_cUserName);
 	} while (m_cUserName[0] == 0);
 
 	TPacket _packet;
-	_packet.Serialize(HANDSHAKE, m_cUserName);
+	_packet.Serialize(HANDSHAKE, const_cast<char*>(m_cUserName.c_str()));
 	SendData(_packet.PacketData);
 	return true;
 }
@@ -372,11 +366,11 @@ void CClient::ProcessData(char* _pcDataReceived)
 		{
 			std::cout << "The username you sent to the server already exists!\nPlease enter a different one.\n";
 			std::cout << "Please enter a username : ";
-			gets_s(m_cUserName);
+			gets_s(const_cast<char*>(m_cUserName.c_str()), m_cUserName.length());
 		} while (m_cUserName[0] == 0);
 
 		TPacket _packet;
-		_packet.Serialize(HANDSHAKE, m_cUserName);
+		_packet.Serialize(HANDSHAKE, const_cast<char*>(m_cUserName.c_str()));
 		SendData(_packet.PacketData);
 		break;
 	}

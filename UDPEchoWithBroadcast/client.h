@@ -68,7 +68,7 @@ private:
 	// A Sockaddress structure which will have the details of the server 
 	sockaddr_in m_ServerSocketAddress;
 	//A username to associate with a client
-	char m_cUserName[MAX_MESSAGE_LENGTH];
+	std::string m_cUserName;
 	//A workQueue to distribute messages between the main thread and Receive thread.
 	CWorkQueue<std::string>* m_pWorkQueue;
 
